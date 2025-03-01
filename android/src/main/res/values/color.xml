@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Second One -->
-    <color name="cast_expanded_controller_ad_break_marker_color">#1AFFFFFF</color>
+    <color name="cast_expanded_controller_ad_break_marker_color">#9387f7</color>
     <color name="cast_expanded_controller_ad_container_white_stripe_color">#1AFFFFFF</color>
     <color name="cast_expanded_controller_ad_in_progress_text_color">#FFFFFF</color>
     <!-- First one -->
