@@ -84,8 +84,6 @@ class _CastSampleState extends State<CastSample> {
       case AppState.error:
         resetTimer();
         return Text('An error has occurred');
-      default:
-        return Container();
     }
   }
 
