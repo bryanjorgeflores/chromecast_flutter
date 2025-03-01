@@ -9,10 +9,6 @@ buildscript {
         mavenCentral()
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17
-    }
-
     dependencies {
         classpath 'com.android.tools.build:gradle:7.4.2' // Updated version
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
@@ -45,6 +41,10 @@ android {
     }
     lintOptions {
         disable 'InvalidPackage'
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
     }
 }
 
