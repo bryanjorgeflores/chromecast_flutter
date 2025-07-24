@@ -60,6 +60,7 @@ abstract class ChromeCastPlatform {
     String subtitle,
     String image, {
     bool? live,
+    String? contentType,
     required int id,
   }) {
     throw UnimplementedError('loadMedia() has not been implemented.');

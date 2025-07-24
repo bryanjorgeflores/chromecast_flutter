@@ -5,30 +5,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cast_video/flutter_cast_video.dart';
 
 String duration2String(Duration? dur, {showLive = 'Live'}) {
-  Duration duration = dur ?? Duration();
-  if (duration.inSeconds < 0)
+  Duration duration = dur ?? const Duration();
+  if (duration.inSeconds < 0) {
     return showLive;
-  else {
+  } else {
     return duration.toString().split('.').first.padLeft(8, "0");
   }
 }
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(home: CastSample());
+    return MaterialApp(
+      home: const CastSample(),
+      themeMode: ThemeMode.dark,
+      darkTheme: ThemeData.dark(),
+    );
   }
 }
 
 class CastSample extends StatefulWidget {
   static const _iconSize = 50.0;
 
+  const CastSample({super.key});
+
   @override
-  _CastSampleState createState() => _CastSampleState();
+  State<CastSample> createState() => _CastSampleState();
 }
 
 class _CastSampleState extends State<CastSample> {
@@ -41,7 +49,7 @@ class _CastSampleState extends State<CastSample> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Plugin example app'),
+        title: const Text('Plugin example app'),
         actions: <Widget>[
           AirPlayButton(
             size: CastSample._iconSize,
@@ -49,6 +57,8 @@ class _CastSampleState extends State<CastSample> {
             activeColor: Colors.amber,
             onRoutesOpening: () => print('opening'),
             onRoutesClosed: () => print('closed'),
+            onPlayerStateChanged:
+                (position) => print('state changed: $position'),
           ),
           ChromeCastButton(
             size: CastSample._iconSize,
@@ -62,6 +72,19 @@ class _CastSampleState extends State<CastSample> {
         ],
       ),
       body: Center(child: _handleState()),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          //charge new media
+          await _controller.loadMedia(
+            'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            title: "TestTitle",
+            subtitle: "test Sub title",
+            image:
+                "https://smaller-pictures.appspot.com/images/dreamstime_xxl_65780868_small.jpg",
+          );
+        },
+        child: const Icon(Icons.stop),
+      ),
     );
   }
 
@@ -75,41 +98,45 @@ class _CastSampleState extends State<CastSample> {
     switch (_state) {
       case AppState.idle:
         resetTimer();
-        return Text('ChromeCast not connected');
+        return const Text('ChromeCast not connected');
       case AppState.connected:
-        return Text('No media loaded');
+        return const Text('No media loaded');
       case AppState.mediaLoaded:
         startTimer();
         return _mediaControls();
       case AppState.error:
         resetTimer();
-        return Text('An error has occurred');
+        return const Text('An error has occurred');
     }
   }
 
   Duration? position, duration;
 
   Widget _mediaControls() {
-    return Column(children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          _RoundIconButton(
-            icon: Icons.replay_10,
-            onPressed: () => _controller.seek(relative: true, interval: -10.0),
-          ),
-          _RoundIconButton(
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            _RoundIconButton(
+              icon: Icons.replay_10,
+              onPressed:
+                  () => _controller.seek(relative: true, interval: -10.0),
+            ),
+            _RoundIconButton(
               icon: _playing ? Icons.pause : Icons.play_arrow,
-              onPressed: _playPause),
-          _RoundIconButton(
-            icon: Icons.forward_10,
-            onPressed: () => _controller.seek(relative: true, interval: 10.0),
-          ),
-        ],
-      ),
-      Text(duration2String(position) + '/' + duration2String(duration)),
-      Text(jsonEncode(_mediaInfo))
-    ]);
+              onPressed: _playPause,
+            ),
+            _RoundIconButton(
+              icon: Icons.forward_10,
+              onPressed: () => _controller.seek(relative: true, interval: 10.0),
+            ),
+          ],
+        ),
+        Text('${duration2String(position)}/${duration2String(duration)}'),
+        Text(jsonEncode(_mediaInfo)),
+      ],
+    );
   }
 
   Timer? _timer;
@@ -139,7 +166,7 @@ class _CastSampleState extends State<CastSample> {
       return;
     }
     resetTimer();
-    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _monitor();
     });
   }
@@ -163,11 +190,24 @@ class _CastSampleState extends State<CastSample> {
   Future<void> _onSessionStarted() async {
     setState(() => _state = AppState.connected);
     await _controller.loadMedia(
-        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-        title: "TestTitle",
-        subtitle: "test Sub title",
-        image:
-            "https://smaller-pictures.appspot.com/images/dreamstime_xxl_65780868_small.jpg");
+      'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+      title: "TestTitle",
+      subtitle: "test Sub title",
+      image:
+          "https://smaller-pictures.appspot.com/images/dreamstime_xxl_65780868_small.jpg",
+    );
+    // await _controller.loadQueueMedia(
+    //   ChromecastQueueModel([
+    //     ChromecastMediaItemModel(
+    //       url:
+    //           'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    //       title: "TestTitle",
+    //       subtitle: "test Sub title",
+    //       image:
+    //           "https://smaller-pictures.appspot.com/images/dreamstime_xxl_65780868_small.jpg",
+    //     ),
+    //   ]),
+    // );
   }
 
   Future<void> _onRequestCompleted() async {
@@ -193,12 +233,14 @@ class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
 
-  _RoundIconButton({required this.icon, required this.onPressed});
+  const _RoundIconButton({required this.icon, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
-        child: Icon(icon, color: Colors.white), onPressed: onPressed);
+      onPressed: onPressed,
+      child: Icon(icon, color: Colors.white),
+    );
   }
 }
 

@@ -7,16 +7,15 @@ import io.flutter.plugin.platform.PlatformViewFactory
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 
-class ChromeCastFactory(private val binaryMessenger: BinaryMessenger) : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
-    var activity: Context? = null
+class ChromeCastFactory(private val binaryMessenger: BinaryMessenger, private val activity: Activity) : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
 
     override fun create(
-            context: Context?,
+            context: Context,
             viewId: Int,
             args: Any?
     ): PlatformView = ChromeCastController(
             messenger = binaryMessenger,
             viewId = viewId,
-            context = activity
+            activityContext = activity
     )
 }

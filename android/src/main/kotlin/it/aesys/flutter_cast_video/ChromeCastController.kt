@@ -16,23 +16,24 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
 import org.json.JSONObject
-
-
 class ChromeCastController(
     messenger: BinaryMessenger,
-    viewId: Int, 
-    context: Context?
+    viewId: Int,
+    private val activityContext: Context
 ) : PlatformView, MethodChannel.MethodCallHandler, SessionManagerListener<Session>,
     PendingResult.StatusListener {
+
     private val channel = MethodChannel(messenger, "flutter_cast_video/chromeCast_$viewId")
-    private val chromeCastButton =
-        MediaRouteButton(ContextThemeWrapper(context, R.style.ChromecastCustomStyle))
-    private val sessionManager = CastContext.getSharedInstance()?.sessionManager
+    private val chromeCastButton: MediaRouteButton
+    private val sessionManager: SessionManager?
     private val remoteMediaClient get() = sessionManager?.currentCastSession?.remoteMediaClient
     private val progressListenerInterval = 100L
 
     init {
-        CastButtonFactory.setUpMediaRouteButton(context as Context, chromeCastButton)
+        CastContext.getSharedInstance(activityContext)
+        sessionManager = CastContext.getSharedInstance(activityContext)?.sessionManager
+        chromeCastButton = MediaRouteButton(ContextThemeWrapper(activityContext, R.style.ChromecastCustomStyle))
+        CastButtonFactory.setUpMediaRouteButton(activityContext, chromeCastButton)
         channel.setMethodCallHandler(this)
     }
 
@@ -59,6 +60,39 @@ class ChromeCastController(
     private fun pause() {
         val request = sessionManager?.currentCastSession?.remoteMediaClient?.pause()
         request?.addStatusListener(this)
+    }
+
+    private fun loadMedia(args: Any?) {
+        if (args is Map<*, *>) {
+            val url = args["url"] as? String ?: ""
+            val title = args["title"] as? String ?: ""
+            val subtitle = args["subtitle"] as? String ?: ""
+            val imageUrl = args["image"] as? String ?: ""
+            val contentType = args["contentType"] as? String ?: "audio/mpeg"
+            val liveStream = args["live"] as? Boolean ?: false
+
+            val movieMetadata = MediaMetadata(MediaMetadata.MEDIA_TYPE_MOVIE)
+
+            val streamType =
+                if (liveStream) MediaInfo.STREAM_TYPE_LIVE else MediaInfo.STREAM_TYPE_BUFFERED
+
+            movieMetadata.putString(MediaMetadata.KEY_TITLE, title)
+            movieMetadata.putString(MediaMetadata.KEY_SUBTITLE, subtitle)
+            movieMetadata.addImage(WebImage(Uri.parse(imageUrl)))
+
+            val mediaInfo = MediaInfo
+                .Builder(url)
+                .setStreamType(streamType)
+                .setContentType(contentType)
+                .setMetadata(movieMetadata)
+                .build()
+
+            val options = MediaLoadOptions.Builder().build()
+            val request = remoteMediaClient?.load(mediaInfo, options)
+            request?.addStatusListener(this)
+            remoteMediaClient?.removeProgressListener(progressListener)
+            remoteMediaClient?.addProgressListener(progressListener, progressListenerInterval)
+        }
     }
 
     private fun loadMediaQueue(args: Any?) {
@@ -111,13 +145,6 @@ class ChromeCastController(
                 items.add(queueItem)
             }
         }
-        Log.d("LOADMEDIAQUEUE", args.toString())
-        Log.d("LOADMEDIAQUEUE", items.toString())
-        Log.d("LOADMEDIAQUEUE POSITION", position.toString())
-        Log.d("LOADMEDIAQUEUE QUEUE INDEX", queueIndex.toString())
-        Log.d("LOADMEDIAQUEUE ARGS", args.toString())
-
-
         val options = MediaLoadOptions.Builder().build()
         val request =
             remoteMediaClient?.queueLoad(
@@ -125,7 +152,7 @@ class ChromeCastController(
                 queueIndex,
                 MediaStatus.REPEAT_MODE_REPEAT_OFF,
                 position.toLong(),
-                options.customData ?: JSONObject()
+                null
             )
         request?.addStatusListener(this)
         remoteMediaClient?.removeProgressListener(progressListener)
@@ -136,22 +163,21 @@ class ChromeCastController(
     private fun seek(args: Any?) {
         if (args is Map<*, *>) {
             val relative = (args["relative"] as? Boolean) ?: false
-            var interval = args["interval"] as? Double
-            interval = interval?.times(1000)
+            val interval = args["interval"] as? Double ?: 0.0
+
+            var seekPosition: Long = (interval * 1000).toLong()
+
             if (relative) {
-                interval = interval?.plus(
-                    sessionManager?.currentCastSession?.remoteMediaClient?.mediaStatus?.streamPosition
-                        ?: 0
-                )
+                val streamPosition = remoteMediaClient?.mediaStatus?.streamPosition ?: 0L
+                seekPosition += streamPosition
             }
-            val request =
-                sessionManager?.currentCastSession?.remoteMediaClient?.seek(interval?.toLong() ?: 0)
+            val request = remoteMediaClient?.seek(seekPosition)
             request?.addStatusListener(this)
         }
     }
 
-    private fun mediaInfoToMap(mediaInfo: MediaInfo?): HashMap<String, String>? {
-        var info = HashMap<String, String>()
+    private fun mediaInfoToMap(mediaInfo: MediaInfo?): HashMap<String, Any>? {
+        var info = HashMap<String, Any>()
         mediaInfo?.let {
             var id = mediaInfo.getContentId() ?: ""
             info["id"] = id
@@ -171,7 +197,7 @@ class ChromeCastController(
         return info;
     }
 
-    private fun getMediaInfo(): HashMap<String, String>? =
+    private fun getMediaInfo(): HashMap<String, Any>? =
         mediaInfoToMap(sessionManager?.currentCastSession?.remoteMediaClient?.getMediaInfo())
 
 
@@ -223,10 +249,14 @@ class ChromeCastController(
     private fun endSession() = sessionManager?.endCurrentSession(true)
 
     private fun position() =
-        sessionManager?.currentCastSession?.remoteMediaClient?.approximateStreamPosition ?: 1
+        (sessionManager?.currentCastSession?.remoteMediaClient?.approximateStreamPosition ?: 0) * 1000
 
     private fun duration() =
-        sessionManager?.currentCastSession?.remoteMediaClient?.mediaInfo?.streamDuration ?: 1
+        if (sessionManager?.currentCastSession?.remoteMediaClient?.mediaInfo?.streamDuration == MediaInfo.UNKNOWN_DURATION) {
+            0
+        } else {
+            (sessionManager?.currentCastSession?.remoteMediaClient?.mediaInfo?.streamDuration ?: 0) * 1000
+        }
 
     private fun addSessionListener() {
         sessionManager?.addSessionManagerListener(this)
@@ -276,6 +306,10 @@ class ChromeCastController(
             "chromeCast#wait" -> result.success(null)
             "chromeCast#loadQueueMedia" -> {
                 loadMediaQueue(call.arguments)
+                result.success(null)
+            }
+            "chromeCast#loadMedia" -> {
+                loadMedia(call.arguments)
                 result.success(null)
             }
             "chromeCast#play" -> {
